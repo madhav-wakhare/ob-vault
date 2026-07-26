@@ -1,0 +1,1 @@
+KEDA, an event-driven Kubernetes autoscaler, its architecture, components, benefits, and comparisons to HPA VPA CPA, highlighting fast event-based scaling and scale-to-zero support.
