@@ -1,4 +1,5 @@
 Helm is a package manager for k8s. 
+
 Helm uses a packaging format called _charts_. A chart is a collection of files that describe a related set of Kubernetes resources. A single chart might be used to deploy something simple, like a memcached pod, or something complex, like a full web app stack with HTTP servers, databases, caches, and so on.
 
 Inside of this directory, Helm will expect a structure that matches this:
