@@ -112,3 +112,24 @@ Iterate through multiple values like for block in programming.
 
 ### Hooks :
 ![[Pasted image 20260727001845.png]]
+
+
+We know that all the files in the templates directory are rendered as k8s manifests when the chart is installed or upgraded. But this `Job` `(For Backup db)` shouldn't work like that, it has to run before the install phase as a pre-install hook and not during the install or upgrade phase with the rest of application. It has to run during the pre-upgrade as part of pre-upgrade process.
+
+How to differentiate the chart hook from the normal template files?
+For this, we need to add an annotation. Annotations are the way for us to add additional metadata to an object which may be used by client of k8s (in this case Helm), to store data about that object & to perform some kind of actions.
+	`Add annotation : "helm.sh/hook" : pre-upgrade`
+
+We can have multiple pre-upgrade hooks in our application helm chart so this may need to have some order like sending notifications to users about maintenance time, displaying banner ,finally database backup job.
+So how to decide in what order these hooks are to be executed? 
+`We can set weights for each hooks`
+These could be negative or positive numbers, So we set a weight for each job in order they should run.
+During the chart installation phase, Helm sorts these in ascending order & executes them in that order.
+To set a weight for a hook, add annotation :
+`"helm.sh/hook-weight" : "5"`
+
+Now Job resource here is gonna stay on as a resource on cluster after the job is completed.
+To cleanup that we need to setup hook deletion policies. 
+
+For this we add annotation :
+`"helm.sh/hook-delete-policy" : hook-succeeded`
