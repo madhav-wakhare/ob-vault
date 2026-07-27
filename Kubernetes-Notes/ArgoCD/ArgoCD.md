@@ -87,3 +87,10 @@ That's the shape of "what." Two things I'd like your input on before we move to 
 
 1. **Is this repo public or private on GitHub?** — settles the repo-credentials question above.
 2. **Do you want 5 separate `Application` files, or 1 `ApplicationSet`?** — I lean toward starting with 5 explicit files since it's easier to reason about individually while learning, and revisiting `ApplicationSet` later once the pattern is familiar — but this is genuinely your call, not a right/wrong.
+
+
+### Terminologies :
+![[Pasted image 20260727200749.png]]
+
+
+ArgoCD also exposes different sets of Prometheus Metrics, which can be visualized through Grafana & it also have out-of box notification service with various triggers. 
