@@ -108,3 +108,7 @@ Iterate through multiple values like for block in programming.
 ![[Pasted image 20260727000111.png]]
 
 	Indentation with help of `include` instead of `template`.
+
+
+### Hooks :
+![[Pasted image 20260727001845.png]]
