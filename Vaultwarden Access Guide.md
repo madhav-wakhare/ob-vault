@@ -9,7 +9,7 @@ The steps below explain the process.
 
 ---
 
-## Step 1 — Connect to the Company Network
+ Step 1 — Connect to the Company Network
 
 Before accessing Vaultwarden, connect your device to the company network by following the **Headscale setup guide**.
 
@@ -17,7 +17,7 @@ Once your device is connected to the internal network, continue to **Step 2**.
 
 ---
 
-## Step 2 — Open Vaultwarden
+Step 2 — Open Vaultwarden
 
 Open the following URL in your browser:
 
@@ -27,7 +27,7 @@ If the page does not load, verify that your device is connected to the company n
 
 ---
 
-## Step 3 — Sign In
+Step 3 — Sign In
 
 Sign in using the shared company account:
 
@@ -40,7 +40,7 @@ After signing in, you will have access to the shared credentials stored in the v
 
 ---
 
-## Browser Extension (Optional)
+Browser Extension (Optional)
 
 For a better day-to-day experience, you can use the Bitwarden browser extension, which is fully compatible with Vaultwarden.
 
@@ -67,7 +67,7 @@ Your device must remain connected to the company network while using the extensi
 
 ---
 
-## Important Guidelines
+Important Guidelines
 
 Since everyone uses the same Vaultwarden account, please follow these guidelines:
 
@@ -79,18 +79,18 @@ Since everyone uses the same Vaultwarden account, please follow these guidelines
 
 ---
 
-## Troubleshooting
+Troubleshooting
 
-|Issue|Resolution|
-|---|---|
-|Vaultwarden page does not load|Verify that your device is connected to the company network (Headscale).|
-|Unable to connect to Headscale|Follow the Headscale setup guide or contact the team.|
-|Login fails with "Invalid password"|Verify that you are using the latest shared password. Contact the team if necessary.|
-|Browser extension cannot connect|Ensure the Server URL is `https://vaultwarden.apps.one2n.io` and your device is connected to the company network.|
+| Issue                               | Resolution                                                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Vaultwarden page does not load      | Verify that your device is connected to the company network (Headscale).                                          |
+| Unable to connect to Headscale      | Follow the Headscale setup guide or contact the team.                                                             |
+| Login fails with "Invalid password" | Verify that you are using the latest shared password. Contact the team if necessary.                              |
+| Browser extension cannot connect    | Ensure the Server URL is `https://vaultwarden.apps.one2n.io` and your device is connected to the company network. |
 
 ---
 
-## Future Support for Individual Accounts
+Future Support for Individual Accounts
 
 Google Workspace Single Sign-On (SSO) has already been configured for Vaultwarden. It is not used in the current shared-account workflow, but it enables a future transition to individual user accounts if needed—for example, to manage team-specific credentials such as HR's Zoho Sign access.
 
@@ -98,11 +98,11 @@ No action is required from users at this time.
 
 ---
 
-## Reference
+Reference
 
-|Item|Value|
-|---|---|
-|Vaultwarden URL|`https://vaultwarden.apps.one2n.io`|
-|Network Requirement|Connected to the company network via Headscale|
-|Shared Account|`shared@one2n.in`|
-|Master Password|Shared securely by the team (not documented here)|
+| Item                | Value                                             |
+| ------------------- | ------------------------------------------------- |
+| Vaultwarden URL     | `https://vaultwarden.apps.one2n.io`               |
+| Network Requirement | Connected to the company network via Headscale    |
+| Shared Account      | `shared@one2n.in`                                 |
+| Master Password     | Shared securely by the team (not documented here) |
