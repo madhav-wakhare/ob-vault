@@ -82,3 +82,16 @@ export BW_SESSION                                     # bw commands after this p
 The script does `bw logout` then a fresh `bw login --apikey` + `bw unlock` on every single pass (every `INTERVAL_SECONDS`, default `60s`) — it doesn't keep a session alive between loop iterations.
 
 The `bw-data` named volume only persists the CLI's local app-data dir (device ID, cache, sync), not an active login session — the three `BW_*` secrets are what re-establish that session from scratch each time.
+
+How script (confirm-members.sh) works internally:
+
+1. **`bw sync`** — it pulls the latest data from Vaultwarden (the Bitwarden-compatible server), so it has an up-to-date view of who's in the org.
+2. **List members** — it checks all organization members and filters for anyone whose status is `Accepted` (meaning: they got the invite email and created their account, but an admin still needs to approve them into the org).
+3. **Confirm them** — for each of those accepted-but-unconfirmed members, it runs `bw confirm org-member` to actually let them into the org.
+
+A few safety details:
+
+- If someone's already confirmed, the bot just skips them — no harm in re-running.
+- If a confirm attempt fails (network hiccup, etc.), it logs the failure and tries again automatically on the next scheduled pass — no manual intervention needed.
+- Members still sitting at `Invited` status (they got the invite but haven't finished creating their account/master password yet) are deliberately left alone — there's nothing to confirm yet, so touching them would be pointless.
+
