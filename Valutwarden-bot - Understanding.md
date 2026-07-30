@@ -1,10 +1,8 @@
 Admin's logged-in browser (which temporarily has the decrypted organization key) encrypts that key using User's public key so that only User can decrypt it.
 
 ---
-Valutwarden-bot : 
 
-
-Good — confirmed `.env` is gitignored and never committed (`vaultwarden-confirm-bot/.gitignore` just contains `.env`), so nothing secret lives in the repo. Here's how it actually works:
+Here's how it actually works:
 
 ## `docker-compose.yml` is a pure pass-through, it creates nothing
 
@@ -83,7 +81,9 @@ The script does `bw logout` then a fresh `bw login --apikey` + `bw unlock` on ev
 
 The `bw-data` named volume only persists the CLI's local app-data dir (device ID, cache, sync), not an active login session — the three `BW_*` secrets are what re-establish that session from scratch each time.
 
-How script (confirm-members.sh) works internally:
+---
+
+***How script (confirm-members.sh) works internally:***
 
 1. **`bw sync`** — it pulls the latest data from Vaultwarden (the Bitwarden-compatible server), so it has an up-to-date view of who's in the org.
 2. **List members** — it checks all organization members and filters for anyone whose status is `Accepted` (meaning: they got the invite email and created their account, but an admin still needs to approve them into the org).
@@ -95,3 +95,16 @@ A few safety details:
 - If a confirm attempt fails (network hiccup, etc.), it logs the failure and tries again automatically on the next scheduled pass — no manual intervention needed.
 - Members still sitting at `Invited` status (they got the invite but haven't finished creating their account/master password yet) are deliberately left alone — there's nothing to confirm yet, so touching them would be pointless.
 
+---
+
+***What does loop.sh does ?***
+
+This is the script that keeps the bot running continuously as a long-lived process (e.g. inside a Docker container). In simple terms:
+
+- **Infinite loop**: it runs `confirm-members.sh` (the script that does the actual `bw sync` / confirm logic described in the README), then waits, then runs it again — forever.
+- **Interval**: how long it waits between passes is controlled by `INTERVAL_SECONDS`, defaulting to 60 seconds if not set elsewhere (e.g. via an env var in the container config).
+- **Doesn't die on failure**: if a pass fails (`|| echo ...`), it just logs a message instead of stopping the loop — so something like Vaultwarden briefly restarting won't kill the whole bot; it'll just retry on the next pass.
+- **Graceful shutdown**: it traps `SIGTERM`/`SIGINT` (the signals sent when you `docker stop` or Ctrl+C it) and exits cleanly (`exit 0`) instead of waiting out the sleep or leaving a zombie process.
+- **`sleep ... & wait $!`**: sleeping in the background and waiting on it (rather than a plain `sleep`) means the trap can interrupt the wait immediately, so shutdown is fast instead of blocking up to 60 seconds.
+
+So: `loop.sh` is the scheduler/wrapper, and `confirm-members.sh` is the actual worker it calls each cycle.
