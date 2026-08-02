@@ -89,3 +89,100 @@ bw confirm org-member   ← repeated per pending member
 ```
 
 The guiding principle behind the ordering: **never confirm against a stale member list.** `list org-members` is always re-fetched immediately before it's used, and re-fetched _again_ after enrollment adds anyone new, so the final confirm loop always sees the most current membership state.
+
+
+----------------------------
+---
+# Vaultwarden Confirm Bot — Notes
+
+## 1. Org membership states
+
+Four states per member, per org (not the same as account status — see below):
+
+|Status|Value|Meaning|
+|---|---|---|
+|Invited|0|Invited to org, no action taken yet|
+|Accepted|1|User has a real account and accepted the invite (or it was auto-accepted) — but not yet usable|
+|Confirmed|2|Org key wrapped with the member's public key — now usable|
+|Revoked|-1|Access removed|
+
+**Why "Accepted" isn't the finish line:** Bitwarden/Vaultwarden is zero-knowledge — the server never holds the org's symmetric key in usable form, only ciphertext. Only an existing confirmed member (a real client with the key) can wrap that key for a new member's public key. That's the "confirm" step — the one thing no server-side automation can do. This bot runs the `bw` CLI as a dedicated org-owner account purely to perform that step (`bw confirm org-member`).
+
+**Reference:** [confirm-members.sh:5-8](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L5-L8), [confirm-members.sh:337](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L337), [README.md:24-36](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/README.md#L24-L36)
+
+---
+
+## 2. Account status vs. org membership status (two different things)
+
+- **`User.status`** (account-level): `Enabled` (0) = finished signup, master password set. `Invited` (1) = account row exists but signup isn't finished (e.g. signed in via SSO but never set a master password).
+- **Org membership status** (table above): about being a member of _this org_, separate from whether the account itself is finished.
+
+A user can show an SSO identity + "Verified" email in `/admin/users` and still be stuck at `Invited` (account-level) if they never completed the master-password step after SSO login. **The bot skips these on purpose** — inviting a mid-signup account would strand them (no invite email since mail is disabled, and they can't act on an org invite from an unfinished account).
+
+**Reference:** [confirm-members.sh:185-196](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L185-L196)
+
+---
+
+## 3. `auto_enrol` — why it's gated on `ADMIN_TOKEN`
+
+```bash
+auto_enrol=1
+[[ -n "${ADMIN_TOKEN:-}" ]] || auto_enrol=0
+```
+
+The script does two independent jobs with two different credentials:
+
+- **Confirm** (always runs) — needs only the org-owner's `bw` session.
+- **Enrol** (opt-in) — needs `GET /admin/users`, a full server-admin endpoint (`ADMIN_TOKEN`), far broader than an org-owner login.
+
+Without `ADMIN_TOKEN`, the bot degrades gracefully: it still confirms anyone already `Accepted` (via manual invite or a server that self-enrols), it just can't discover unenrolled registered users on its own.
+
+**Reference:** [confirm-members.sh:49-53](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L49-L53), [README.md:79-98](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/README.md#L79-L98)
+
+---
+
+## 4. Full SSO user lifecycle
+
+1. User authenticates via IdP → Vaultwarden creates/links a local account. They are **not yet an org member**.
+2. Account may sit at `User.status = Invited` if they haven't finished setting a master password (SSO login alone doesn't complete Bitwarden's encryption setup).
+3. Once `Enabled`, bot's **enrol** step invites them into the org (`type: 2`, plus configured groups/collections).
+4. With mail disabled, Vaultwarden **auto-accepts** the invite immediately (no email round-trip) since the account is already `Enabled` → membership status `Invited → Accepted`.
+5. Bot's **confirm** step (`bw confirm org-member`) wraps the org key for them → `Accepted → Confirmed`. Now usable.
+6. Bot's **reconcile** step keeps their groups/collections in sync with current config on every subsequent pass.
+
+**Reference:** [confirm-members.sh:10-16](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L10-L16), [README.md:8-22](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/README.md#L8-L22)
+
+---
+
+## 5. Why reconciliation is a separate step from enrol/confirm
+
+`invite_member()` only assigns groups/collections **at invite time**, using whatever `ORG_GROUP_IDS`/`ORG_COLLECTION_IDS` are set _then_. Neither enrolment nor confirm ever revisits that. If you change the config later (e.g. add a new collection), existing members keep whatever they got originally — forever, unless something goes back and fixes it.
+
+`reconcile_member_access` runs every pass on every existing member (skipping Owners/Admins/`accessAll`), diffs current vs. configured access, and grants the **union** (never a smaller set — the edit-member API replaces the whole list, so reading-then-adding is what prevents accidentally revoking existing access).
+
+**Reference:** [confirm-members.sh:14-16](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L14-L16), [confirm-members.sh:214-274](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L214-L274), [README.md:100-119](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/README.md#L100-L119)
+
+---
+
+## 6. Credential refresh cadence — what, how often, why
+
+|Credential|Refresh cadence|Why|
+|---|---|---|
+|Admin session cookie|Reactive — only re-logs in when the cached cookie fails (~every `admin_session_lifetime`, default 20 min)|Admin login is rate-limited to burst of 3 per 300s; logging in every pass would 429 quickly|
+|API access token (bearer, invite/reconcile calls)|Every ~270s (cached with expiry, server token TTL is 300s)|`client_credentials` grant never returns a refresh token — full relogin every time, shares the server's general login rate limiter|
+|`bw` CLI login (org-owner)|Every ~270s, tracked via `/data/bw-last-login`; force-retries once if `bw sync` fails|Same rate limiter as above; logging in every pass would run ~2x the sustainable rate|
+|`bw unlock` (vault session)|**Every single pass**, no caching|Purely local crypto (decrypts already-synced vault) — no server call, no rate limit concern|
+
+**Reference:** [confirm-members.sh:55-58](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L55-L58), [confirm-members.sh:103-107](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L103-L107), [confirm-members.sh:276-297](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L276-L297), [README.md:58-77](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/README.md#L58-L77)
+
+---
+
+## 7. Why `INTERVAL_SECONDS` defaults to 60
+
+This is the sleep between passes in [loop.sh:6](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/loop.sh#L6), not something derived from the credentials themselves.
+
+60s lines up with the **slowest-recovering constraint in the system**: the server's general login rate limiter refills at only **1 per 60s** (burst of 10). Even cached logins eventually need to refresh (~every 4.5 min); polling faster than 60s wouldn't make those any more reliable — it would just add extra non-login calls every pass (`bw sync`, `bw list org-members`, admin/reconcile GETs) for state that doesn't actually change faster than once a minute in practice (a person finishing signup, an admin editing config).
+
+Net effect: worst case, a new SSO user waits ~60s from finishing signup to being confirmed — often less, since enrol→accept→confirm can complete within a single pass.
+
+**Reference:** [loop.sh:6](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/loop.sh#L6), [README.md:68](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/README.md#L68), [confirm-members.sh:323-326](vscode-webview://01m0pm37ec0pr5ao6ifr3mc2d4hchfhnj6vd3iscp8ecf4ipho55/vaultwarden-confirm-bot/confirm-members.sh#L323-L326)
