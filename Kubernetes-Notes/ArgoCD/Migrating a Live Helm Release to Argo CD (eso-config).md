@@ -1256,3 +1256,28 @@ When something breaks you know exactly which change did it.
 
 > [!quote] The goal
 > A good migration is **boring**. If it's exciting, something is wrong.
+
+
+# Helm → Argo CD Ownership Transfer
+
+1. Helm manages an application using **two things**:
+   - A **release Secret** (Helm's memory).
+   - **Annotations/labels** on the resource (Helm's ownership marker).
+
+2. The **release Secret** lets Helm perform `upgrade`, `rollback`, and `uninstall`.
+
+3. The **annotations** help Helm verify, "Is this resource really mine?"
+
+4. First, make sure Argo CD is managing the resource successfully.
+
+5. Then **delete the Helm release Secret** so Helm forgets the release.
+
+6. If someone runs `helm upgrade` now, Helm cannot find the release and stops safely.
+
+7. After that, remove Helm's ownership annotations and `managed-by` label.
+
+8. Do **not** use `helm uninstall` because it deletes the actual Kubernetes resources.
+
+9. Keep labels like `app.kubernetes.io/name` and `app.kubernetes.io/instance` because they come from the Helm chart itself and Argo CD also expects them.
+
+10. Result: **Argo CD becomes the only active manager, while the application keeps running without downtime.**
