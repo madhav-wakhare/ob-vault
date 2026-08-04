@@ -1,270 +1,234 @@
-### Finalizer in Argocd:
-
-A finalizer in Argo CD (`resources-finalizer.argoproj.io`) is ==a Kubernetes metadata tag that tells the Argo CD controller to perform a cascading delete of all managed child resources (like Deployments and Services) before allowing the main Application custom resource itself to be fully deleted==.
-
-When you delete an Argo CD Application with a finalizer, the **cascading delete** ensures that all the real-world parts (like your application's web servers, databases, and network settings) are safely destroyed together. Nothing gets left behind to clutter your cluster.
-
-
-# Resource Tracking Problem (Helm → Argo CD)
-
-## Background
-
-Both **Helm** and **Argo CD** need a way to identify which Kubernetes resources belong to them.
-
-This is called **resource tracking**.
-
 ---
 
-# Helm Resource Tracking
+title: Argo CD — Finalizers, Resource Tracking, and Server-Side Diff
 
-Helm adds labels such as:
+aliases:
+
+- Argo CD Production Settings
+
+tags:
+
+- argocd
+
+- gitops
+
+- helm
+
+- kubernetes
+
+created: 2026-08-04
+
+---
+# Argo CD: Finalizers, Resource Tracking, and Server-Side Diff
+
+## 1. Application finalizer
+
+An Argo CD Application finalizer, usually `resources-finalizer.argocd.argoproj.io`, instructs Argo CD to remove the application's managed Kubernetes resources before the Application object itself is deleted.
+
+```mermaid
+
+flowchart LR
+
+Delete["Delete Argo CD Application"] --> Finalizer["Finalizer blocks Application deletion"]
+
+Finalizer --> Cleanup["Argo CD deletes managed resources"]
+
+Cleanup --> Removed["Application object is removed"]
+
+```
+
+> [!important]
+
+> The finalizer provides **cascading deletion**: Deployments, Services, ConfigMaps, and other resources managed by the Application are cleaned up instead of being left behind.
+
+## 2. Avoid Helm and Argo CD tracking conflicts
+
+### The issue
+
+Helm commonly tracks a release with:
 
 ```yaml
+
 metadata:
-  labels:
-    app.kubernetes.io/instance: eso-config
-    app.kubernetes.io/managed-by: Helm
+
+labels:
+
+app.kubernetes.io/instance: eso-config
+
+app.kubernetes.io/managed-by: Helm
+
+annotations:
+
+meta.helm.sh/release-name: eso-config
+
+meta.helm.sh/release-namespace: eso-ns
+
 ```
 
-It also adds ownership annotations:
+Argo CD's default tracking also uses the `app.kubernetes.io/instance` label. During a Helm-to-Argo-CD migration, two controllers can therefore modify the same tracking label.
+
+```mermaid
+
+flowchart LR
+
+Helm["Helm"] --> Label["app.kubernetes.io/instance"]
+
+Argo["Argo CD"] --> Label
+
+Label --> Risk["Ownership ambiguity<br/>and false OutOfSync"]
+
+```
+
+### Recommended configuration
+
+Use annotation-based resource tracking in Argo CD:
 
 ```yaml
-metadata:
-  annotations:
-    meta.helm.sh/release-name: eso-config
-    meta.helm.sh/release-namespace: eso-ns
-```
 
----
-
-# Argo CD Default Resource Tracking
-
-By default, Argo CD also tracks resources using the label:
-
-```yaml
-app.kubernetes.io/instance
-```
-
----
-
-# The Problem
-
-If both Helm and Argo CD manage the same label:
-
-```text
-Helm
-   │
-   ▼
-app.kubernetes.io/instance
-   ▲
-   │
-Argo CD
-```
-
-Both controllers may attempt to update the same metadata field.
-
-This can lead to:
-
-- Resource ownership confusion
-- Unnecessary OutOfSync status
-- Metadata conflicts
-- Difficult Helm → Argo CD migrations
-
-> **Note:** In a Server-Side Apply (SSA) environment (e.g., Helm 4), ownership is tracked per field by the Kubernetes API server, making these conflicts more significant.
-
----
-
-# Production Solution
-
-Configure Argo CD to track resources using **annotations** instead of labels.
-
-```yaml
 configs:
-  cm:
-    application.resourceTrackingMethod: annotation
+
+cm:
+
+application.resourceTrackingMethod: annotation
+
 ```
 
-Argo CD will then add annotations such as:
+Argo CD will track resources with an annotation such as:
 
 ```yaml
+
 metadata:
-  annotations:
-    argocd.argoproj.io/tracking-id: ...
+
+annotations:
+
+argocd.argoproj.io/tracking-id: ...
+
 ```
 
-instead of modifying:
+| Tool | Tracking location |
+
+| --- | --- |
+
+| Helm | Labels and Helm ownership annotations |
+
+| Argo CD | `argocd.argoproj.io/tracking-id` annotation |
+
+> [!success]
+
+> Annotation tracking prevents Argo CD from competing with Helm for `app.kubernetes.io/instance`. It is especially useful for migrations and clusters with multiple controllers.
+
+## 3. Server-side diff
+
+### What it does
+
+Instead of Helm remembering everything,
+the Kubernetes API Server now remembers field ownership.
+
+That's a big architectural difference.
+Server-side diff asks the Kubernetes API server to perform a dry-run apply of the Git manifest. Argo CD then compares that predicted resource with the actual live resource.
+
+```mermaid
+
+flowchart LR
+
+Git["Git manifest"] --> DryRun["Kubernetes API server<br/>dry-run apply"]
+
+DryRun --> Predicted["Predicted resource"]
+
+Live["Live resource"] --> Compare{"Compare"}
+
+Predicted --> Compare
+
+Compare --> Result["Accurate sync status"]
+
+```
+
+This accounts for API-server defaults and mutations, reducing noise from fields such as `resourceVersion`, `managedFields`, `uid`, `creationTimestamp`, and default values.
+
+### Enable it
 
 ```yaml
-metadata:
-  labels:
-    app.kubernetes.io/instance: ...
-```
 
----
-
-# Result
-
-```text
-Before
-
-Helm ───────────────► app.kubernetes.io/instance
-Argo CD ───────────► app.kubernetes.io/instance
-
-❌ Both use the same label.
-
-----------------------------------------
-
-After
-
-Helm ───────────────► Labels
-
-Argo CD ───────────► Annotations
-
-✅ No tracking conflict.
-```
-
----
-
-# Key Takeaway
-
-During a **Helm → Argo CD** migration, changing Argo CD's resource tracking method to **annotations** avoids competing over the same tracking label and makes adoption of existing Helm-managed resources safer.
-
-
-# Server-side Diff (Argo CD)
-
-## What is it?
-
-Instead of comparing the **Git manifest** directly with the **live resource**, Argo CD asks the Kubernetes API server:
-
-> "If I applied this manifest, what would the resource look like?"
-
-The API server performs a **server-side dry-run** and returns the predicted object for comparison.
-
----
-
-## Why use it?
-
-Kubernetes automatically adds or modifies fields such as:
-
-- `resourceVersion`
-- `managedFields`
-- `uid`
-- `creationTimestamp`
-- Default values
-
-A simple YAML comparison can incorrectly report these as drift.
-
-Server-side diff compares the **predicted live object** with the **actual live object**, significantly reducing false `OutOfSync` reports.
-
----
-
-## Enable it
-
-```yaml
 configs:
-  params:
-    controller.diff.server.side: true
+
+params:
+
+controller.diff.server.side: true
+
 ```
 
----
+> [!tip] Best fit
 
-## Comparison
+> Enable server-side diff when managing existing resources, using Server-Side Apply, or operating alongside controllers such as ESO, cert-manager, Vault, or Istio.
 
-### Without Server-side Diff
+## 4. Install Argo CD CRDs
 
-```text
-Git Manifest
-      │
-      ▼
-Direct YAML Comparison
-      │
-      ▼
-Live Resource
-
-❌ May report false differences
-```
-
-### With Server-side Diff
-
-```text
-Git Manifest
-      │
-      ▼
-API Server (Dry Run Apply)
-      │
-      ▼
-Predicted Resource
-      │
-      ▼
-Compare with Live Resource
-
-✅ More accurate diff
-```
-
----
-
-## When is it most useful?
-
-- Helm 4 (Server-Side Apply)
-- Argo CD managing existing resources
-- Clusters with multiple controllers (ESO, cert-manager, Vault, Istio, etc.)
-- Brownfield GitOps migrations
-
----
-
-> **Key Takeaway:** Server-side diff uses the Kubernetes API server to calculate the expected resource before comparing it with the live object, producing more accurate diffs and reducing false `OutOfSync` states.
-
-
-# `crds.install: true`
-
-## What does it do?
-
-Tells the Argo CD Helm chart to **install its Custom Resource Definitions (CRDs)** during installation.
+Enable CRD installation in the Argo CD Helm chart:
 
 ```yaml
+
 crds:
-  install: true
+
+install: true
+
 ```
 
-Without the CRDs, Kubernetes does not recognize Argo CD resources such as:
+CRDs extend Kubernetes with Argo CD resource types, including:
 
 - `Application`
+
 - `ApplicationSet`
+
 - `AppProject`
 
-Creating one of these resources would fail with an error like:
+Without the CRDs, Kubernetes rejects these manifests with an error similar to:
 
 ```text
+
 no matches for kind "Application" in version "argoproj.io/v1alpha1"
+
 ```
 
----
+```mermaid
 
-## Why is it needed?
+flowchart LR
 
-CRDs extend the Kubernetes API by introducing new resource types.
+CRD["Install Argo CD CRDs"] --> API["Kubernetes API recognizes<br/>Argo CD resource types"]
 
-Installing the CRDs first allows Kubernetes to understand Argo CD's custom resources before they are created.
+API --> Apps["Create Application,<br/>ApplicationSet, and AppProject"]
 
----
-
-## Example
-
-```text
-Install Argo CD CRDs
-        │
-        ▼
-Kubernetes learns about:
-- Application
-- ApplicationSet
-- AppProject
-        │
-        ▼
-Application YAML can now be created successfully.
 ```
 
----
+## Recommended Helm values
 
-## Key Takeaway
+```yaml
 
-`crds.install: true` ensures Argo CD's custom resource definitions are installed so Kubernetes can recognize and manage resources like `Application`, `ApplicationSet`, and `AppProject`.
+crds:
+
+install: true
+
+configs:
+
+cm:
+
+application.resourceTrackingMethod: annotation
+
+params:
+
+controller.diff.server.side: true
+
+```
+
+## Summary
+
+| Setting | Why it matters |
+
+| --- | --- |
+
+| Application finalizer | Cleans up Application-managed resources during deletion. |
+
+| Annotation resource tracking | Avoids conflict with Helm's instance label. |
+
+| Server-side diff | Produces a more accurate diff and fewer false `OutOfSync` states. |
+
+| `crds.install: true` | Ensures Kubernetes recognizes Argo CD custom resources. |
