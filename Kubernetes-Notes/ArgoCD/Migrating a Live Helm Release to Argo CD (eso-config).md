@@ -90,6 +90,11 @@ and nothing links them. Deleting one does not clean up the others.
 | 2 | **Ownership annotations** ("the sticker") | on the object: `meta.helm.sh/release-name`, `meta.helm.sh/release-namespace` | Helm's collision check — refuses to touch a foreign object | `helm upgrade` |
 | 3 | **Managed-by label** | on the object: `app.kubernetes.io/managed-by: Helm` | Advisory only | humans |
 | 4 | **`managedFields`** | on the object, maintained by the **API server** | per-field ownership, per manager | the API server, on every write |
+## What SSA is, in one sentence
+
+> Instead of your tool figuring out what changed, you send the API server the fields **you care about**, and the API server keeps a record of **who owns which field**.
+
+That record is **`managedFields`**
 
 ### The asymmetry that matters most
 
