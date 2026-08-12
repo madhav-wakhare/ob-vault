@@ -7,3 +7,4 @@ The RED Method defines the three key metrics you should measure for every micros
 
 Another nice aspect of the RED method is that it helps you think about how to build your dashboards. You should bring these three metrics front-and-center for each service and error rate should be expressed as a proportion of request rate.
 
+![[Pasted image 20260812135503.png]]
