@@ -43,10 +43,54 @@ Where They Can Be Used
 
 
 
-To connect a VM to Azure Blob to access a file in blob via managed identity:
-1. Both needs to be present in resource group.
-2. Go to VM Identity and `on` the toggle for System Assigned managed identity and save it.
-3. Go to Storage Account and go to Access Control (IAM) and get to Add role assignment and assign the identity that we have created in previous step. (So simply we are assigning a role to the identity we have created)
-4. Give role as owner (initially) & in Member's tab select Assign access to Managed Identity 
-5. And In select members, in managed identity select VM and the VM that we have created & wanted to grant the blob storage.
-6. 
+### Connecting a VM to Azure Blob Storage via Managed Identity
+
+**Goal:** Allow a VM to access a file in Azure Blob Storage without using storage account keys or credentials — using Azure AD (Managed Identity) instead.
+
+#### Prerequisites
+
+- Both the **VM** and the **Storage Account** should ideally be in the same **Resource Group** (not mandatory, but keeps things organized and easier to manage).
+
+---
+
+#### Step 1: Enable Managed Identity on the VM
+
+- Go to your **VM** → **Identity** (under Settings).
+- Under **System assigned**, toggle **Status** to **On**.
+- Click **Save**.
+- This creates an identity _for the VM itself_ in Azure AD — no separate credentials needed. Azure handles the identity lifecycle (created/deleted with the VM).
+
+#### Step 2: Assign Role to the Identity on the Storage Account
+
+- Go to your **Storage Account** → **Access Control (IAM)**.
+- Click **Add** → **Add role assignment**.
+- This is where we tell Azure: _"this identity is allowed to do X on this storage account."_
+
+#### Step 3: Choose the Role
+
+- In the **Role** tab, select an appropriate role.
+    - You mentioned **Owner** — works for testing, but it's overly permissive (grants full control, not just data access).
+    - **Better practice:** use **Storage Blob Data Reader** (read-only) or **Storage Blob Data Contributor** (read/write) — these are scoped specifically to blob data access.
+- Click **Next** to go to the **Members** tab.
+
+#### Step 4: Assign Access to Managed Identity
+
+- In **Members**, select **Assign access to** → **Managed Identity**.
+- Click **+ Select members**.
+
+#### Step 5: Select the VM's Identity
+
+- In the **Managed identity** dropdown, filter by **Virtual Machine**.
+- Select the specific VM you enabled the identity for in Step 1.
+- Click **Select** → **Review + assign**.
+
+---
+
+#### 💡 Notes / Best Practices
+
+- **Avoid Owner role** for production — it grants management-plane access (delete storage account, change access policies, etc.), not just data access.
+- Prefer:
+    - `Storage Blob Data Reader` — read-only access to blobs
+    - `Storage Blob Data Contributor` — read/write access to blobs
+- Once role is assigned, your VM can use the **Azure Instance Metadata Service (IMDS)** endpoint to fetch a token and authenticate to Blob Storage — no keys, no secrets stored on the VM.
+- Role assignments can take a few minutes to propagate.
