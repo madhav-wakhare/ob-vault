@@ -19,5 +19,10 @@ User requests resource by any of the means -> ARM -> Azure Resource created.
 - What are ARM Templates?
   JSON Templating standard which are able to create resources on Microsoft azure.
 
+![[Pasted image 20260816152242.png]]
+
+We can override the values in ARM Templates with help of parameters in order to make it reusable with different set of values.
+We can have variables and functions in the ARM Templates as well.
+
 
 
