@@ -114,3 +114,41 @@ We can restore the app to a previous restore point or create a web app altogethe
 
 Backup is also plan dependent. It requires Standard or Premium plan.
 
+
+---
+
+## CI/CD :
+
+We can integrate App Service with Github, or other VCS Providers.
+
+CI/CD enhances code quality and accelerates delivery by automating integration and deployment processes. Azure App Service supports two primary deployment methods that help teams minimize downtime and improve reliability:
+
+1. **Automated Deployment**  
+    Developers push new code—including features, patches, and bug fixes—to repositories such as GitHub, Bitbucket, Local Git, or Azure Repos. When integrated with CI/CD, these updates are automatically propagated to the App Service with minimal impact on end users.
+2. **Manual Deployment**  
+    Developers store code in remote cloud storage services (e.g., OneDrive or Dropbox) or external Git repositories, then manually trigger updates to the App Service.
+
+### Deployment Slots
+
+Deployment slots enable you to create multiple environments (such as staging, QA, UAT, or development) within a single Azure App Service. Testing new code in a staging slot prior to a production swap minimizes downtime and avoids performance issues like cold starts. Key features of deployment slots include:
+
+- **Environment Separation:**  
+    Each slot represents an environment—production, QA, or development—allowing for isolated testing and validation.
+- **Auto Swap:**  
+    Automatically swap slots when validations are successful to eliminate service disruptions.
+- **Rollback Capability:**  
+    Quickly revert to a previous version by swapping back to the last known good configuration.
+- **Service Plan Limitations:**
+    - Free, Shared, and Basic: Deployment slots are not supported.
+    - Standard: Supports up to 5 slots.
+    - Premium and Isolated: Support up to 20 slots.
+
+When creating a deployment slot, decide whether to clone the app configuration (from production or another slot) or start fresh. Understand which settings swap and which do not. Generally, swappable settings include general settings, WebJob contents, app settings, path mappings, hybrid connections, connection strings, service endpoints, handler mappings, and Azure CDN configurations. Non-swappable settings include publishing endpoints, scale settings, CORS, custom domains, IP restrictions, VNet integration, non-public certificates, always-on configuration, managed identities, TLS/SSL settings, diagnostic settings, and any setting ending with an extension version suffix.
+
+![[Pasted image 20260818165354.png]]
+Working with branches & slots :
+
+You can configure separate deployment slots for different branches to facilitate parallel development. For example, create a “dev” branch in Azure Repos containing the same content as the main branch, and then add a corresponding deployment slot in your App Service.
+
+---
+
