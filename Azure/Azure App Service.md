@@ -41,20 +41,20 @@ All apps in the same plan share its CPU, memory and disk — you pay for the *pl
 
 ## Which one to pick
 
-| Your situation | Tier |
-|---|---|
-| Learning, demo, throwaway | **Free** |
-| Dev/test, small internal tool | **Basic** |
+| Your situation                                                    | Tier                        |
+| ----------------------------------------------------------------- | --------------------------- |
+| Learning, demo, throwaway                                         | **Free**                    |
+| Dev/test, small internal tool                                     | **Basic**                   |
 | Normal production site or API (zero-downtime deploys + autoscale) | **Standard** ← usual answer |
-| High traffic, or must reach private databases/VNets | **Premium v3/v4** |
-| Compliance requires full network isolation | **Isolated** |
+| High traffic, or must reach private databases/VNets               | **Premium v3/v4**           |
+| Compliance requires full network isolation                        | **Isolated**                |
 
 ## Things that catch people out
 
 - **Free tier's 60 CPU-minutes/day** is a hard stop — the app returns errors until the next day.
 - **Slots only start at Standard.** If you want a staging URL you can swap into production, Basic won't do it.
 - **Linux plans are cheaper** than Windows for the same tier.
-- **You can change tier anytime** — scaling up/down takes a minute and needs no redeploy. So start small.
+- **You can change tier anytime** — scaling up/down takes a minute and needs no redeploy. So start small. Resizing a app plan will reboot our application.
 - **Shared (D1) is being retired** — don't build anything new on it.
 - Exact quotas and available SKUs (**Stock-Keeping Unit**) vary by region and change over time — confirm against the Azure pricing calculator / App Service limits docs before budgeting.
 
@@ -63,7 +63,8 @@ In App Service plan, scaling your application can be done in two ways:
 2. Scale out (Horizantal scaling) : Adding more instances of your application & distributing the load across multiple servers. 
 
 Azure App Service Plan allows us to configure autoscaling based on metrics like CPU usage or request queues, which can be crucial for handling sudden traffic spikes without manual intervention.
- 
+
+
  ---
 
 **Azure Container Instances** allows us to run containers directly without any orchestration layer. This is perfect for simple applications or batch jobs.
@@ -79,3 +80,6 @@ Creating App service :
 1. It is not necessary to create a app service plan prior to creating app service. We can create it on the go while creating the app service.
 2. Name of App Service, Publish : Code (runtime environment) or Docker Container or Static Web App.
 3. 
+
+
+During the deployment of your web application, you need to perform testing in a production-like environment without affecting the live site. We will use **Deployment slots** for that.
