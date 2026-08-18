@@ -43,3 +43,5 @@ It transmit data in a controls manner traveling from source to destination.
 ![[Pasted image 20260818234718.png]]
 1. All REST APIs uses HTTP. HTTP under the hood uses TCP. 
 ![[Pasted image 20260819000137.png]]
+
+![[Pasted image 20260819003025.png]]
