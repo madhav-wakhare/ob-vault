@@ -1,5 +1,7 @@
 {
   "translucency": true,
-  "accentColor": "#5ca6f5",
-  "cssTheme": "Cupertino"
+  "accentColor": "#a5e7fd",
+  "cssTheme": "Cupertino",
+  "monospaceFontFamily": "Helvetica",
+  "textFontFamily": "Helvetica Neue"
 }
