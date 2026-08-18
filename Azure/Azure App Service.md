@@ -79,7 +79,28 @@ Lastly for advanced container orchestration, azure offers **AKS**.
 Creating App service : 
 1. It is not necessary to create a app service plan prior to creating app service. We can create it on the go while creating the app service.
 2. Name of App Service, Publish : Code (runtime environment) or Docker Container or Static Web App.
-3. 
 
 
 During the deployment of your web application, you need to perform testing in a production-like environment without affecting the live site. We will use **Deployment slots** for that.
+
+---
+
+### Securing App Service:
+![[Pasted image 20260818131401.png]]
+
+In Networking part of App Service we can disable the public access and add rules for accessing our deployed application on App Service with help of allow & deny.
+
+---
+
+## Custom Domain : 
+
+Article : https://notes.kodekloud.com/docs/Updated-AZ-104-Microsoft-Azure-Administrator/Administer-PaaS-Compute-Options/Custom-Domains/page
+
+The default domain granted by the App Service when we initially deployed app is azurewebsite.net domain.
+
+We can bring our own domain to create branding. We need to validate domain before we add it in App Service. Custom Domain supports both A & CNAME mapping, but before that we need to add a TXT record to prove that we own the domain. Then we can add CNAME & A record for custom domain to our App Service.
+
+Custom Domains are supported from basics plan onwards. So we can't use custom domains for free or shared tier.
+
+
+
