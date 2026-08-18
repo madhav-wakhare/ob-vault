@@ -102,5 +102,15 @@ We can bring our own domain to create branding. We need to validate domain befor
 
 Custom Domains are supported from basics plan onwards. So we can't use custom domains for free or shared tier.
 
+----
 
+## Backing up App Service:
+
+App Service supports both manual and scheduled backup, which include the backup of the configuration, file contents and connected database.
+
+Backup can be upto 10 Gb of app and database.
+Full and partial backups can be configured.
+We can restore the app to a previous restore point or create a web app altogether.
+
+Backup is also plan dependent. It requires Standard or Premium plan.
 
