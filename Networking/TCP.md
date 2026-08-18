@@ -25,5 +25,21 @@ It transmit data in a controls manner traveling from source to destination.
    Instead of sending large data at once, TCP breaks this into chunks & does this chunking internally. 
    And this chunk is called TCP Segment.
    ![[Pasted image 20260818230229.png]]
-7. Segments provides reliable, ordered of data between applications. When these segments travels over the network each segment is embedded in IP Packets and there is no guarantee which segment will reach the destination first (Maybe segment 5 will reach destination first in above diagram).  
+7. Segments provides reliable, ordered of data between applications. When these segments travels over the network each segment is embedded in IP Packets and there is no guarantee which segment will reach the destination first (Maybe segment 5 will reach destination first in above diagram).
+   TCP guarantee the order to be rearranged at destination even if the order off segment arrival is unordered.
+   If a segment is dropped midway, TCP will detect it and will retransmit it unless it reach destination. 
+   TCP uses acknowledgments for figuring out if packet/segment is dropped or not and retransmit it. **It covers Reliability and ordered part of TCP**.
    
+8. Receiver sends acknowledgments (ACKs) to confirm received data. 
+   If segment 1 reaches the destination destination will tell source that I got segment 1 (ACK).
+   This all process is in built in TCP.
+   
+9. Lost segments are detected & transmitted. (Read point 7)
+   
+10. TCP has overhead of all the above things so TCP is bit slow than UDP. But it is more reliable than UDP. We cannot loose the data and it should be in order as well.
+
+
+## TCP Usecases
+![[Pasted image 20260818234718.png]]
+1. All REST APIs uses HTTP. HTTP under the hood uses TCP. 
+![[Pasted image 20260819000137.png]]
