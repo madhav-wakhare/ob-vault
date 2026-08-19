@@ -124,3 +124,64 @@ Local Network Gateway is not the physical VPN device.
 | **Next Hop**       | Where the packet goes next             | Next destination on the path       |
 
 
+```mermaid
+flowchart TB
+    classDef onprem fill:#e8f3ff,stroke:#2563eb,color:#0f172a,stroke-width:2px
+    classDef azure fill:#eafaf1,stroke:#059669,color:#064e3b,stroke-width:2px
+    classDef vpn fill:#fff7e6,stroke:#d97706,color:#78350f,stroke-width:2px
+    classDef internet fill:#f8fafc,stroke:#64748b,color:#334155,stroke-dasharray: 6 4
+    classDef tunnel fill:#f3e8ff,stroke:#7e22ce,color:#581c87,stroke-width:2px
+
+    subgraph OP["On-premises network"]
+        SRV["Servers / workloads<br/>Subnet: 10.20.0.0/16"]
+        LAN["Local routing<br/>Route to 10.10.0.0/16 → VPN device"]
+        FW["VPN device / firewall<br/>Public IP • NAT-T capable"]
+        SRV --> LAN --> FW
+    end
+
+    subgraph NEG["IKE security association establishment"]
+        IKE1["1. IKE negotiation<br/>UDP 500"]
+        IKE2["2. Authentication<br/>Pre-shared key or certificates"]
+        IKE3["3. Diffie-Hellman key exchange<br/>Creates IKE SA"]
+        IKE4["4. IPsec SA negotiation<br/>Encryption, integrity, PFS"]
+        IKE1 --> IKE2 --> IKE3 --> IKE4
+    end
+
+    FW -. "Control plane" .-> IKE1
+
+    subgraph NET["Internet"]
+        WAN["Public internet<br/>UDP 500 / UDP 4500 (NAT-T)<br/>ESP: IP protocol 50 when not NAT-T"]
+    end
+
+    subgraph TUN["Encrypted site-to-site VPN tunnel"]
+        ENC["IPsec data plane<br/>🔐 Encrypted payload traffic<br/>Typical: AES-256 + SHA-256<br/>Tunnel mode"]
+    end
+
+    subgraph AZ["Microsoft Azure"]
+        AGW["Azure VPN Gateway<br/>Gateway subnet<br/>Public IP"]
+        RT["Azure route table<br/>10.20.0.0/16 → Virtual network gateway"]
+        subgraph VNET["Azure Virtual Network — 10.10.0.0/16"]
+            VM["Azure VMs / services<br/>Protected subnets"]
+        end
+        AGW --> RT --> VM
+    end
+
+    FW -->|"IKE / IPsec over internet"| WAN
+    WAN --> ENC
+    ENC --> AGW
+
+    SRV -. "Private packet<br/>10.20.x.x → 10.10.x.x" .-> FW
+    AGW -. "Decrypted packet" .-> VM
+
+    NOTE1["Traffic selectors / encryption domains<br/>Local: 10.20.0.0/16<br/>Remote: 10.10.0.0/16"]
+    NOTE2["Operational details<br/>• Match IKE/IPsec proposals on both sides<br/>• Allow UDP 500 and 4500 outbound/inbound<br/>• Configure non-overlapping address spaces<br/>• Monitor tunnel status, rekeying, and logs"]
+
+    ENC --- NOTE1
+    AGW --- NOTE2
+
+    class SRV,LAN,FW onprem
+    class AGW,RT,VM azure
+    class IKE1,IKE2,IKE3,IKE4 vpn
+    class WAN internet
+    class ENC tunnel
+```
