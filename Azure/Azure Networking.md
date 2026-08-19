@@ -18,8 +18,11 @@ Publish everything via Firewall instead of exposing VM over a public ip address.
 ![[Pasted image 20260815224335.png]]
 
 ![[Pasted image 20260815225459.png]]
-If we have 2 VMs in different 2 Resource Groups and want DNS resolution between them then we have use Private DNS Zones.
+If we have 2 VMs in different 2 Vnet and want DNS resolution between them then we have use Private DNS Zones.
+You enable automatic registration and resolution of DNS records across multiple VNets with help of Private DNS Zones.
+An auto-registration feature can be optionally enabled so that any new VM added to the linked networks automatically registers its DNS record.
 
+Once connected via virtual network links, VMs are able to resolve each other’s names across different networks.
 
 ![[Pasted image 20260816104941.png]]
 
