@@ -1,4 +1,12 @@
 
+Simple terms : IKE protocol is used to authenticate source and destination.
+IPsec Protocol **Protects the actual data traffic** by encrypting and/or authenticating packets.
+
+For an Azure Site-to-Site VPN:
+1. **IKE** → VPN Gateway A and VPN Gateway B authenticate each other.
+2. **IKE** → They negotiate encryption algorithms and establish shared keys.
+3. **IPsec** → Those negotiated keys/algorithms are used to protect the actual traffic traveling through the VPN tunnel.
+
 In networking, **IKE** stands for **Internet Key Exchange**. It is a secure protocol used to set up a safe, encrypted communication channel between two devices, mostly used alongside **IPsec** to build Virtual Private Networks (VPNs). IKE handles mutual authentication and manages the cryptographic keys required to keep data safe. 
 
 How IKE Works in Two Phases
