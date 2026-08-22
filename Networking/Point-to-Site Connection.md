@@ -17,6 +17,30 @@ This VPN Gateway is assigned with a Public IP.
 
 ![[Pasted image 20260822120257.png]]
 
+SKU : Nothing but the configuration based on price and performance of the resource.
+![[Pasted image 20260822122331.png]]
+Max 128 connections here means we can connect remote 128 laptops through SSTP to Azure.
+If our need is more than this we can use IKEv2/OpenVPN Connections which give 250 max connections to Azure.
+In Basic SKU, we can have 200 VM in a VNET which can be connected through Tunnel.
+
+
+active-to-active mode :
+If VPN gateway goes down then the connections to VM in VNET attached to that VPN will be terminated which will bring business impact as Remote workers will not be able to work.
+
+So we need High Availability for VPN Gateway as well.
+
+So there are 2 modes for maintaining high-availability :
+1. active-active
+2. active-passive
+
+In backend Microsoft Azure always deploys 2 VPN Gateways regardless of the mode.
+
+In Active-Active mode, both VPN Gateways will be active all time. Both will have public IPs. Traffic distribution will be equal on both the gateways. 
+
+So in Active-Active we need 2 public ips for 2 VPN gateways in background.
+
+In Active-Passive mode, If a VPN Gateways goes down, Other will then only handle traffic. It will not be active all time.
+
 
 
 
