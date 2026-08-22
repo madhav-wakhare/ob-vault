@@ -7,6 +7,7 @@ VPN Gateways enable various types of connectivity within and between Azure virtu
 <Frame>
   ![The image illustrates a VPN Gateway setup, showing connections between virtual networks (VNet-A and VNet-B) and point-to-site and site-to-site connections to locations labeled LON and NYC.](https://kodekloud.com/kk-media/image/upload/v1752884648/notes-assets/images/Updated-AZ-104-Microsoft-Azure-Administrator-VPN-Gateway/vpn-gateway-setup-vnet-connections.jpg)
 
+
 In the architecture depicted above, VNet A is configured with a VPN Gateway (also known as a virtual network gateway) and connected to VNet B via a VNet-to-VNet connection. It is important to note that both VNets must have their own gateway to establish this connection—a key difference from VNet peering, which does not require a gateway on both sides. For example, VNet A can serve the London office using its Site-to-Site connection, while VNet B serves the New York office; the New York office can access VNet A through the established connectivity.
 
 <Callout icon="lightbulb" color="#1CB2FE">
