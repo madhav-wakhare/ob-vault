@@ -15,303 +15,285 @@ tags:
 - strongswan
 
 ---
-
-
-````
 # Azure ↔ AWS Site-to-Site VPN
 
-## 1. Overview
+> [!abstract] Objective
+> Connect an Azure VNet to an AWS VPC through a secure **Site-to-Site IPsec VPN**. Azure uses a managed **VPN Gateway**, while AWS uses an EC2 instance running **strongSwan**.
 
-A **Site-to-Site VPN** creates an encrypted connection between an Azure VNet and an AWS VPC over the public internet.
-
-In this lab:
-
-- **Azure** → VPN Gateway
-- **AWS** → EC2 running strongSwan
-- **Protocol** → IKEv2 + IPsec
-- **Authentication** → Pre-Shared Key (PSK)
-- **Tunnel** → Bidirectional
-- **Traffic** → Split tunnel
-
----
-
-## 2. Lab Architecture
+## Architecture
 
 ```mermaid
 flowchart LR
-    AWS["AWS VPC<br>10.20.0.0/16"]
-    EC2["EC2 + strongSwan<br>10.20.1.9"]
-    VPN["Encrypted IPsec Tunnel<br>IKEv2"]
-    AZ["Azure VPN Gateway"]
-    AZVNET["Azure VNet<br>10.0.0.0/16"]
-
-    AWS --> EC2
-    EC2 <--> VPN
-    VPN <--> AZ
-    AZ --> AZVNET
-````
-
-> If Obsidian still has trouble rendering `<br>`, use the even simpler version below:
-
-````
-```mermaid
-flowchart LR
-    A[AWS VPC] --> B[AWS EC2 + strongSwan]
-    B <--> C[IPsec VPN Tunnel]
-    C <--> D[Azure VPN Gateway]
-    D --> E[Azure VNet]
+  AzureVM["Azure VM<br/>10.0.1.10"] --- AzureGateway["Azure VPN Gateway<br/>Public IP"]
+  AzureGateway <-->|"IKEv2 · UDP 500/4500 · IPsec/ESP"| StrongSwan["EC2 + strongSwan<br/>Public IP"]
+  StrongSwan --- AWSVM["AWS VM<br/>10.20.1.20"]
 ```
-````
 
----
+> [!important]
+> Azure and AWS CIDR ranges must **not overlap**. Use `10.0.0.0/16` for Azure and `10.20.0.0/16` for AWS.
 
-## 3. Important Components
+## Key concepts
 
-|Component|Purpose|
-|---|---|
-|**Azure VNet**|Azure private network|
-|**Azure VPN Gateway**|VPN endpoint on Azure|
-|**AWS VPC**|AWS private network|
-|**AWS EC2**|Acts as the VPN endpoint|
-|**strongSwan**|IPsec VPN software on EC2|
-|**IKEv2**|Negotiates the VPN security association|
-|**IPsec**|Encrypts the actual network traffic|
-|**PSK**|Authenticates both VPN endpoints|
+- **VPN Gateway** — Azure-managed VPN endpoint.
+- **strongSwan** — Linux IPsec implementation running on AWS EC2.
+- **IKEv2** — Negotiates security parameters and authenticates peers.
+- **PSK** — Shared secret used to authenticate both endpoints.
+- **IKE SA** — Secure control relationship between VPN peers.
+- **CHILD SA** — IPsec security association that carries traffic.
+- **IPsec / ESP** — Encrypts and protects private network traffic.
+- **Routing** — Sends traffic to the correct VPN endpoint.
 
----
+> [!tip] Mental model
+> **IKE establishes the secure relationship.**  
+> **IPsec/ESP protects the actual traffic.**  
+> **Routing decides where the traffic goes.**
 
-## 4. VPN Configuration
+## Network design
 
 ### Azure
 
-```
-Azure VNet:       10.0.0.0/16
-VPN Gateway:      Azure VPN Gateway
-Public IP:        Azure VPN Gateway Public IP
-IKE Protocol:     IKEv2
-Authentication:   PSK
-```
+- VNet: `vnet-dq` — `10.0.0.0/16`
+- Application subnet: `10.0.1.0/24`
+- Gateway subnet: `GatewaySubnet` — `10.0.255.0/27`
+- VPN Gateway: `kk-vpn-gateway`
+- VPN type: Route-based
+- SKU: `VpnGw1AZ`
+- BGP: Disabled
+
+> [!warning]
+> `GatewaySubnet` is reserved for Azure gateway resources. Do not deploy normal VMs into it.
 
 ### AWS
 
-```
-AWS VPC:          10.20.0.0/16
-VPN Endpoint:     EC2
-VPN Software:     strongSwan
-Public IP:        EC2 Public IP
-IKE Protocol:     IKEv2
-Authentication:   PSK
-```
+- VPC: `aws-vpn-vpc` — `10.20.0.0/16`
+- VPN subnet: `10.20.1.0/24`
+- VPN appliance: Ubuntu EC2 running strongSwan
+- Example private IP: `10.20.1.9`
+- Internet access: Internet Gateway with a `0.0.0.0/0` route
 
----
+## Azure setup
 
-## 5. strongSwan Configuration
+### 1. Create the VNet and subnets
 
-The important parts of `/etc/ipsec.conf`:
+```text
+VNet: vnet-dq
+Address space: 10.0.0.0/16
 
-```
-keyexchange=ikev2
-authby=psk
+Application subnet
+Name: app-subnet
+CIDR: 10.0.1.0/24
 
-left=%defaultroute
-leftid=<AWS_PUBLIC_IP>
-leftsubnet=10.20.0.0/16
-
-right=<AZURE_VPN_PUBLIC_IP>
-rightsubnet=10.0.0.0/16
-
-ike=aes256-sha256-modp2048!
-esp=aes256-sha256!
-
-auto=start
+Gateway subnet
+Name: GatewaySubnet
+CIDR: 10.0.255.0/27
 ```
 
-The `!` means:
+### 2. Create the VPN Gateway
 
-> Use **only** this proposal. Do not negotiate other algorithms.
-
----
-
-## 6. IKE vs IPsec
-
-```
-IKEv2
-  │
-  ├── Authenticates peers
-  ├── Negotiates encryption
-  └── Creates security association
-          │
-          ▼
-       IPsec
-          │
-          └── Encrypts application traffic
+```text
+Name: kk-vpn-gateway
+Gateway type: VPN
+VPN type: Route-based
+SKU: VpnGw1AZ
+Generation: Generation1
+BGP: Disabled
+Public IP: vpn-gateway-pip
 ```
 
-Think of it as:
-
-**IKEv2 = negotiates the secure tunnel**
-
-**IPsec = carries encrypted traffic through the tunnel**
-
----
-
-## 7. Split Tunnel vs Full Tunnel
-
-### Split Tunnel
-
-Only traffic destined for the remote private network goes through the VPN.
-
-```
-AWS → 10.0.0.0/16
-        ↓
-     VPN Tunnel
-        ↓
-      Azure
-
-AWS → Internet
-        ↓
-   Normal Internet
+```bash
+az network vnet-gateway create \
+  --resource-group <RESOURCE_GROUP> \
+  --name kk-vpn-gateway \
+  --location eastus \
+  --gateway-type Vpn \
+  --vpn-type RouteBased \
+  --sku VpnGw1AZ \
+  --vpn-gateway-generation Generation1 \
+  --vnet vnet-dq \
+  --public-ip-addresses vpn-gateway-pip
 ```
 
-Our lab uses **split tunneling** because the traffic selectors are:
+### 3. Create the Local Network Gateway
 
-```
-10.20.0.0/16 === 10.0.0.0/16
-```
-
-So only traffic between these networks enters the VPN.
-
-### Full Tunnel
-
-All traffic goes through the VPN.
-
-```
-AWS → VPN → Azure → Internet
+```text
+Name: aws-local-gateway
+Remote VPN public IP: <AWS_EC2_PUBLIC_IP>
+Remote address space: 10.20.0.0/16
+BGP: Disabled
 ```
 
-A full tunnel would typically use:
+The Local Network Gateway represents the AWS VPN endpoint and the AWS network behind it.
 
-```
-0.0.0.0/0
-```
+### 4. Create the VPN connection
 
-as the remote traffic selector, along with the appropriate routing configuration.
-
----
-
-## 8. How to Verify the Tunnel
-
-### Check strongSwan
-
-```
-sudo ipsec statusall
+```text
+Name: azure-to-aws
+Connection type: Site-to-site (IPsec)
+Virtual network gateway: kk-vpn-gateway
+Local network gateway: aws-local-gateway
+IKE version: IKEv2
+BGP: Disabled
+Shared key: <YOUR_PSK>
 ```
 
-Look for:
+> [!danger]
+> Use a strong PSK and never store it in Git, public notes, or screenshots.
 
-```
-Security Associations (1 up)
-```
+## AWS setup
 
-and:
+### 1. Create the VPC and subnet
 
-```
-ESTABLISHED
-```
+```text
+VPC: aws-vpn-vpc
+CIDR: 10.20.0.0/16
 
-Example:
-
-```
-azure-vpn[1]: ESTABLISHED
-azure-vpn{1}: INSTALLED, TUNNEL
+Subnet: vpn-subnet
+CIDR: 10.20.1.0/24
 ```
 
-### Check traffic
+Attach an Internet Gateway and add this route:
 
-```
-ping <Azure-VM-private-IP>
-```
-
-If the ping succeeds, traffic is successfully crossing the VPN.
-
----
-
-## 9. Useful Troubleshooting
-
-### Check VPN status
-
-```
-sudo ipsec statusall
+```text
+Destination: 0.0.0.0/0
+Target: Internet Gateway
 ```
 
-### Restart strongSwan
+### 2. Launch the VPN EC2 instance
 
-```
-sudo ipsec restart
+```text
+OS: Ubuntu Server LTS
+Name: aws-vpn-server
+Subnet: vpn-subnet
+Public IP: Enabled
 ```
 
-### Manually initiate VPN
+### 3. Configure the Security Group
 
+- TCP `22` — SSH; allow only your public IP.
+- UDP `500` — IKE.
+- UDP `4500` — NAT Traversal.
+- ESP, IP protocol `50` — IPsec ESP when NAT-T is not used.
+
+> [!important]
+> IKE uses **UDP 500**. NAT Traversal uses **UDP 4500**. They are not TCP ports.
+
+### 4. Allow packet forwarding
+
+Disable **Source/Destination Check** on the VPN EC2 instance. The instance must forward packets destined for Azure and AWS workloads, not only packets addressed to itself.
+
+Enable Linux IP forwarding:
+
+```bash
+sudo sysctl -w net.ipv4.ip_forward=1
+echo 'net.ipv4.ip_forward = 1' | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+sysctl net.ipv4.ip_forward
 ```
+
+Expected:
+
+```text
+net.ipv4.ip_forward = 1
+```
+
+## Install and configure strongSwan
+
+### Install
+
+```bash
+sudo apt update
+sudo apt install -y strongswan strongswan-starter
+ipsec version
+```
+
+### Configure `/etc/ipsec.conf`
+
+```conf
+config setup
+    charondebug="ike 2, knl 2, cfg 2"
+
+conn azure-vpn
+    type=tunnel
+    auto=start
+    keyexchange=ikev2
+    authby=psk
+
+    left=%defaultroute
+    leftid=<AWS_EC2_PUBLIC_IP>
+    leftsubnet=10.20.0.0/16
+
+    right=<AZURE_VPN_GATEWAY_PUBLIC_IP>
+    rightid=%any
+    rightsubnet=10.0.0.0/16
+
+    ike=aes256-sha256-modp2048
+    esp=aes256-sha256
+
+    dpdaction=restart
+    dpddelay=30s
+    dpdtimeout=120s
+    keyingtries=%forever
+```
+
+### Configure `/etc/ipsec.secrets`
+
+```conf
+<AWS_EC2_PUBLIC_IP> <AZURE_VPN_GATEWAY_PUBLIC_IP> : PSK "<YOUR_SHARED_KEY>"
+```
+
+> [!note]
+> `left` is the AWS strongSwan side; `right` is the Azure side.
+
+### Start the tunnel
+
+```bash
+sudo systemctl restart strongswan
 sudo ipsec up azure-vpn
+sudo ipsec statusall
 ```
 
-### Check logs
+Successful output should include:
 
-```
-sudo journalctl -u strongswan -f
-```
-
-Common errors:
-
-|Error|Meaning|
-|---|---|
-|`NO_PROPOSAL_CHOSEN`|IKE/IPsec algorithms don't match|
-|`AUTHENTICATION_FAILED`|PSK or identity mismatch|
-|`duplicate CHILD_SA`|Tunnel is already established|
-|`ESTABLISHED`|IKE tunnel is successfully established|
-|`INSTALLED, TUNNEL`|IPsec CHILD_SA is installed|
-
----
-
-## 10. Final Mental Model
-
-```
-AWS VPC
-10.20.0.0/16
-      │
-      ▼
-EC2 + strongSwan
-      │
-      │ IKEv2
-      │ IPsec
-      │ PSK
-      ▼
-══════════════════════
-   Encrypted Tunnel
-══════════════════════
-      │
-      ▼
-Azure VPN Gateway
-      │
-      ▼
-Azure VNet
-10.0.0.0/16
+```text
+IKE_SA established
+CHILD_SA established
 ```
 
-### Remember
+## Routing requirements
 
-> **IKEv2 establishes the secure relationship.**
-> 
-> **IPsec encrypts the traffic.**
-> 
-> **PSK authenticates the endpoints.**
-> 
-> **Routing/traffic selectors determine what traffic enters the tunnel.**
-> 
-> **Our lab is a split-tunnel, site-to-site VPN.**
-
+```mermaid
+flowchart LR
+  AzureVM["Azure VM"] --> AzureGateway["Azure VPN Gateway"] -->|"IPsec"| StrongSwan["AWS EC2 + strongSwan"] --> AWSVM["AWS VM"]
 ```
 
-The main change I'd recommend is **not using complex `subgraph` syntax** for this diagram. The simple `flowchart LR` version is much less likely to cause rendering issues in Obsidian.
+- Azure destination: `10.20.0.0/16` → Azure VPN connection.
+- AWS workload route table: `10.0.0.0/16` → VPN EC2 instance or its ENI.
+
+> [!warning]
+> A tunnel being **UP** does not prove application connectivity. Routing, security groups, NSGs, host firewalls, IP forwarding, and EC2 Source/Destination Check must also be correct.
+
+## Troubleshooting
+
+```bash
+sudo systemctl status strongswan
+sudo ipsec statusall
+sudo journalctl -u strongswan --no-pager -n 100
+ip route
+sysctl net.ipv4.ip_forward
+ip xfrm state
+ip xfrm policy
+sudo tcpdump -ni any 'udp port 500 or udp port 4500 or proto 50'
 ```
+
+- **`NO_PROPOSAL_CHOSEN`** — Compare the Azure IPsec/IKE policy with `ike=` and `esp=`.
+- **IKE authentication failure** — Check Azure shared key, `/etc/ipsec.secrets`, and `leftid`.
+- **No IKE activity** — Check UDP `500`/`4500`, security group, Azure NSG, public IPs, and Internet routing.
+- **IKE SA works but no CHILD SA** — Check `leftsubnet`, `rightsubnet`, and ESP settings.
+- **Tunnel is UP but ping fails** — Check route tables, Source/Destination Check, IP forwarding, security groups/NSGs, and host firewalls.
+
+> [!summary] Final takeaway
+> A cross-cloud Site-to-Site VPN needs three things to work together:
+>
+> 1. **A healthy IKE/IPsec tunnel**
+> 2. **Correct routes on both sides**
+> 3. **Forwarding and firewall rules that allow workload traffic**
