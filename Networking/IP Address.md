@@ -23,5 +23,8 @@ So we have 8 bits per octet.
 
 So we have 4 octets -> 8 bits * 4 octets -> 32 bits. This is weight of IPv4 address.
 
-
+![[Pasted image 20260822143851.png]]
+Reserved Address :
+![[Pasted image 20260822143947.png]]
+**The IP address range other these reserved address space are allocated to us as public Ips.**
 
